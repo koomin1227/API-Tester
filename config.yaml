@@ -1,0 +1,62 @@
+ignoreCase: true # 비교 하는 api 응답의 case 를 상관할지 않할지 (snake_case, camelCase)
+
+baseA: # 비교하려는 첫번쨰 API 정보
+  url: "http://serverA.com"
+  headers:
+    Authorization: "Bearer tokenA"
+
+baseB: # 비교하려는 두번쨰 API 정보
+  url: "http://serverB.com"
+  headers:
+    Authorization: "Bearer tokenB"
+
+tests: # 테스트 정보
+  - name: "회원 조회 API" # 테스트 하려는 API 이름
+    method: "GET" # 테스트 하려는 API 메서드
+    apiA:
+      path: "/api/user/:userId"
+      headers:
+        Authorization: "Bearer tokenC"
+    apiB:
+      path: "/api/v2/member/:memberId"
+      headers:
+        Authorization: "Bearer tokenD"
+    ignoreFields: # ignoreCase: true 인 경우, ignoreFields 도 case 상관 없이 무시하고, ignoreCase: false 인 경우 두 api 모두 ignoreFields 에 있는 값과 일치하는것만 무시하면 되겠지.
+      - hello
+      - bye
+    fieldMappings: # a 응답에서 특정 필드의 이름이 b 응답에서는 바뀌는 내용을 기재한다.
+      user_name: name
+      user_age: age
+      created_at: createdAt
+
+    cases:
+      - name: "회원 1번 조회"
+        apiA:
+          pathParams:
+            userId: 1
+          queryParams:
+            detail: "true"
+          headers:
+            Authorization: "Bearer tokenC"
+        apiB:
+          pathParams:
+            memberId: 1
+          queryParams:
+            info: "full"
+          headers:
+            Authorization: "Bearer tokenD"
+
+      - name: "회원 2번 조회"
+        apiA:
+          pathParams:
+            userId: 1
+          queryParams:
+            detail: "true"
+
+        apiB:
+          pathParams:
+            memberId: 1
+          queryParams:
+            info: "full"
+          headers:
+            Authorization: "Bearer isChange?"
