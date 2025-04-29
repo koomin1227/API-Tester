@@ -25,22 +25,21 @@ tests: # 테스트 정보
       - success
       - code
       - message
-    fieldMappings:
-      - path: "user"
-        mappings:
-          bye: bye2
+#    fieldMappings:
+#      - path: "user"
+#        mappings:
+#          bye: bye2
 #    fieldMappings:
 #      bye: bye2
-#    fieldMappings:
-#      - path: "user.data"
-#        mappings:
+    fieldMappings:
+      - path: "user.data"
+        mappings:
 #          total_count: totalCount1
-#          data: items
-#
-#      - path: "user.data.items"
-#        mappings:
-#          data: isActive
-#          addition_id: additionId1
+          data: items
+
+      - path: "user.data.items"
+        mappings:
+          data: isActive
 
 
 
@@ -54,12 +53,12 @@ tests: # 테스트 정보
       - name: "회원 1번 조회"
         apiA:
           pathParams:
-            userId: 1
+            userId: 3
           headers:
             Authorization: "Bearer tokenC"
         apiB:
           pathParams:
-            memberId: 2
+            memberId: 4
           headers:
             Authorization: "Bearer tokenD"
 

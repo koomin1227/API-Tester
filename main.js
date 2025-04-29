@@ -2,6 +2,7 @@
 const fs = require('fs');
 const yaml = require('yaml');
 const axios = require('axios');
+const {parseConfig} = require("./services/configParser");
 
 // 유틸 함수: path param 채워넣기
 function fillPath(path, params) {
@@ -72,12 +73,38 @@ function deepEqual(objA, objB) {
     return JSON.stringify(objA) === JSON.stringify(objB);
 }
 
-// 메인 함수
-async function runTest(configPath) {
-    // 1. YAML 읽기
-    const configFile = fs.readFileSync(configPath, 'utf8');
-    const config = yaml.parse(configFile);
+function diffObjects(objA, objB, path = '') {
+    const diffs = [];
 
+    if (typeof objA !== typeof objB) {
+        diffs.push({ path, valueA: objA, valueB: objB });
+        return diffs;
+    }
+
+    if (typeof objA !== 'object' || objA === null || objB === null) {
+        if (objA !== objB) {
+            diffs.push({ path, valueA: objA, valueB: objB });
+        }
+        return diffs;
+    }
+
+    const keys = new Set([...Object.keys(objA || {}), ...Object.keys(objB || {})]);
+    for (const key of keys) {
+        const nextPath = path ? `${path}.${key}` : key;
+        diffs.push(...diffObjects(objA?.[key], objB?.[key], nextPath));
+    }
+
+    return diffs;
+}
+
+
+// 메인 함수
+async function runTest(configPath, options) {
+    isDebug = options.debug !== undefined;
+    resultPrint = options.print !== undefined;
+
+    // 1. YAML 읽기
+    const config = parseConfig(configPath);
     const { ignoreCase, baseA, baseB, tests } = config;
 
     for (const test of tests) {
@@ -92,8 +119,7 @@ async function runTest(configPath) {
                 // 2. URL 완성
                 const urlA = baseA.url + fillPath(apiA.path, testCase.apiA?.pathParams) + buildQuery(testCase.apiA?.queryParams);
                 const urlB = baseB.url + fillPath(apiB.path, testCase.apiB?.pathParams) + buildQuery(testCase.apiB?.queryParams);
-                console.log(`\n  [URL - A] ${urlA}`);
-                console.log(`  [URL - B] ${urlB}`);
+
                 // 3. 헤더 합치기 (base + 추가)
                 const headersA = {
                     ...baseA.headers,
@@ -105,13 +131,15 @@ async function runTest(configPath) {
                     ...apiB.headers,
                     ...(testCase.apiB?.headers || {})
                 };
-                console.log(`\n  [Headers - A] ${JSON.stringify(headersA, null, 2)}`);
-                console.log(`  [Headers - B] ${JSON.stringify(headersB, null, 2)}`);
+
+                printDebugInfo({urlA, urlB}, {headersA, headersB}, isDebug)
+
                 // 4. API 호출
                 const [responseA, responseB] = await Promise.all([
                     axios({ method, url: urlA, headers: headersA }).then(res => res.data),
                     axios({ method, url: urlB, headers: headersB }).then(res => res.data)
                 ]);
+                printResult(responseA, responseB, resultPrint);
 
                 // 5. 응답 처리
                 let dataA = responseA;
@@ -132,13 +160,18 @@ async function runTest(configPath) {
                 dataA = removeIgnoredFields(dataA, ignoreFields, ignoreCase);
                 dataB = removeIgnoredFields(dataB, ignoreFields, ignoreCase);
 
-                // 6. 비교
-                if (deepEqual(dataA, dataB)) {
+
+                const diffs = diffObjects(dataA, dataB);
+
+                if (diffs.length === 0) {
                     console.log('    ✅ PASS');
                 } else {
                     console.log('    ❌ FAIL');
-                    console.log('    [A] ', JSON.stringify(dataA, null, 2));
-                    console.log('    [B] ', JSON.stringify(dataB, null, 2));
+                    for (const diff of diffs) {
+                        console.log(`    [DIFF] ${diff.path}`);
+                        console.log(`      A: ${JSON.stringify(diff.valueA)}`);
+                        console.log(`      B: ${JSON.stringify(diff.valueB)}`);
+                    }
                 }
             } catch (err) {
                 console.error('    🚨 Error:', err.message);
@@ -146,21 +179,6 @@ async function runTest(configPath) {
         }
     }
 }
-
-// 유틸 함수: 객체의 키를 모두 소문자로 변환
-// function toLowerCaseKeys(obj) {
-//     if (Array.isArray(obj)) {
-//         return obj.map(item => toLowerCaseKeys(item));
-//     } else if (obj !== null && typeof obj === 'object') {
-//         const newObj = {};
-//         for (const [key, value] of Object.entries(obj)) {
-//             const newKey = key.toLowerCase().replace(/_/g, '');
-//             newObj[newKey] = toLowerCaseKeys(value);
-//         }
-//         return newObj;
-//     }
-//     return obj;
-// }
 
 function toLowerCaseKeys(obj, convertValues = false) {
     if (Array.isArray(obj)) {
@@ -180,6 +198,33 @@ function toLowerCaseKeys(obj, convertValues = false) {
     }
 }
 
+function printDebugInfo(urls, headers, isDebug) {
+    if (!isDebug) return;
+    const {urlA, urlB} = urls;
+    const {headersA, headersB} = headers;
+
+    console.log(`\n  [URL - A] ${urlA}`);
+    console.log(`  [URL - B] ${urlB}`);
+
+    console.log(`\n  [Headers - A] ${JSON.stringify(headersA, null, 2)}`);
+    console.log(`  [Headers - B] ${JSON.stringify(headersB, null, 2)}`);
+}
+
+function printResult(responseA, responseB, resultPrint) {
+    if (!resultPrint) return;
+    console.log('\n  [Response - A]');
+    console.log(JSON.stringify(responseA, null, 2));
+
+    console.log('\n  [Response - B]');
+    console.log(JSON.stringify(responseB, null, 2));
+}
+
 // 실행
 const configPath = './test.yaml'; // 사용할 YAML 경로
-runTest(configPath);
+// runTest(configPath);
+
+
+
+module.exports = {
+    runTest
+};
