@@ -150,7 +150,7 @@ async function runTest(configPath, options) {
                     dataA = toLowerCaseKeys(dataA);
                     dataB = toLowerCaseKeys(dataB);
                     fieldMappings = toLowerCaseKeys(fieldMappings, true);
-                    ignoreFields = toLowerCaseKeys(ignoreFields);
+                    ignoreFields = toLowerCaseValues(ignoreFields);
                 }
 
                 // 필드 매핑 적용 (A 기준으로 변경)
@@ -178,6 +178,12 @@ async function runTest(configPath, options) {
             }
         }
     }
+}
+
+function toLowerCaseValues(values) {
+    return values.map(value => {
+        return value.toLowerCase().replace(/_/g, '');;
+    })
 }
 
 function toLowerCaseKeys(obj, convertValues = false) {
